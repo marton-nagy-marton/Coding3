@@ -113,3 +113,113 @@ dt_country <- hotels[, .(avg_ppn = weighted.mean(price_per_night, bookings), avg
 hotels[, mean(rating, na.rm = TRUE)]
 
 dt_country[avg_rating > hotels[, mean(rating, na.rm = TRUE)], country]
+
+hotels[, pricecat := cut(price_per_night, 3)]
+hotels[, .N, by = pricecat]
+
+hotels[, pricecat := cut(price_per_night, c(0, 100, 250, Inf), labels = c('cheap', 'avg', 'expensive'))]
+hotels[, .N, by = pricecat]
+
+hotels[, pricecat := cut(price_per_night,
+                         c(0, quantile(price_per_night, 1/3), quantile(price_per_night, 2/3), Inf),
+                         labels = c('cheap', 'avg', 'expensive'))]
+hotels[, .N, by = pricecat]
+
+# assign cutpoints by within country quantiles
+hotels[, lower := quantile(price_per_night, 1/3), by = country]
+hotels[, upper := quantile(price_per_night, 2/3), by = country]
+
+#does not run because some countries has same lowe and upper bounds
+hotels[, pricecat := cut(price_per_night,
+                         c(0, lower[1], upper[1], Inf),
+                         labels = c('cheap', 'avg', 'expensive')),
+       by = country]
+
+hotels[, .(0, lower[1], upper[1], Inf), by = country]
+
+hotels$pricecat <- NULL
+hotels[lower != upper, pricecat := cut(price_per_night,
+                         c(0, lower[1], upper[1], Inf),
+                         labels = c('cheap', 'avg', 'expensive')),
+       by = country]
+
+# flag of japan modelling exercise
+
+points <- data.table(x = rep(1:100, 100), y = rep(1:100, each = 100), color = 'white')
+
+points[(x - 50)^2 + (y - 50)^2 <= 50, color := 'red']
+
+ggplot(points, aes(x, y, color = color)) +
+  geom_point() +
+  theme_void() +
+  scale_color_manual(values = c('red', 'white')) +
+  theme(legend.position = 'none')
+
+points[, is_red := as.integer(color == 'red')]
+
+points[, color := factor(color)]
+fit <- glm(color ~ x + y, points, family = binomial(link = logit))
+summary(fit)
+predict(fit, type = 'response')
+
+points$pred <- predict(fit, type = 'response')
+
+ggplot(points, aes(x, y, color = factor(round(pred)))) +
+  geom_point() +
+  theme_void() +
+  scale_color_manual(values = c('red', 'white')) +
+  theme(legend.position = 'none')
+
+library(rpart)
+fit <- rpart(color ~ x + y, points)
+fit
+
+plot(fit)
+text(fit)
+
+predict(fit, type = 'class')
+points$pred <- predict(fit, type = 'class')
+
+ggplot(points, aes(x, y, color = pred)) +
+  geom_point() +
+  theme_void() +
+  scale_color_manual(values = c('red', 'white')) +
+  theme(legend.position = 'none')
+
+ggplot(points, aes(x, y)) +
+  geom_tile(aes(fill = pred), alpha = 0.5) +
+  geom_tile(aes(fill = color), alpha = 0.5) +
+  theme_void() +
+  scale_fill_manual(values = c('red', 'white')) +
+  theme(legend.position = 'none')
+
+library(partykit)
+plot(as.party(fit))
+
+fit <- rpart(color ~ x + y, points, control = rpart.control(minsplit = 1, cp = 0))
+
+?rpart
+
+plot(as.party(fit))
+
+points$pred <- predict(fit, type = 'class')
+ggplot(points, aes(x, y)) +
+  geom_tile(aes(fill = pred), alpha = 0.5) +
+  geom_tile(aes(fill = color), alpha = 0.5) +
+  theme_void() +
+  scale_fill_manual(values = c('red', 'white')) +
+  theme(legend.position = 'none')
+
+library(randomForest)
+
+fit <- randomForest(color ~ x + y, points)
+
+fit
+
+points$pred <- predict(fit, type = 'class')
+ggplot(points, aes(x, y)) +
+  geom_tile(aes(fill = pred), alpha = 0.5) +
+  geom_tile(aes(fill = color), alpha = 0.5) +
+  theme_void() +
+  scale_fill_manual(values = c('red', 'white')) +
+  theme(legend.position = 'none')
